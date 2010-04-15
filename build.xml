@@ -157,85 +157,16 @@
 
 
 	<!-- ================================================================== -->
-	<!-- Integration Tests                                                  -->
+	<!-- Multi target build                                                 -->
 	<!-- ================================================================== -->
-
-	<target name="compile-integration-test" depends="compile">
-		<echo>*** Building Integration Tests Sources ***</echo>
-		<mkdir dir="${build.dir.it-classes}" />
-		<path id="test.path">
-			<pathelement location="${build.dir.main-classes}" />
-			<pathelement location="${build.dir.test-classes}" />
-			<pathelement location="${build.dir.it-classes}" />
-		</path>
-
-		<javac encoding="${build.encoding}"
-		       srcdir="${it.src.dir}"
-		       includes="**/*.java"
-		       destdir="${build.dir.it-classes}"
-		       debug="${javac.debug}"
-		       optimize="${javac.optimize}"
-		       target="${javac.version}"
-		       source="${javac.version}"
-		       deprecation="${javac.deprecation}">
-			<compilerarg line="${javac.args} ${javac.args.warnings}" />
-			<classpath refid="test.classpath" />
-			<classpath refid="test.path" />
-		</javac>
-	</target>
-
-	<target name="test-it"
-	        depends="jar, compile-integration-test"
-	        description="--> run integration tests">
-		<delete dir="${build.dir.it-reports}" />
-		<mkdir dir="${build.dir.it-reports}" />
-
-		<junit showoutput="no"
-		       printsummary="yes"
-		       haltonfailure="no"
-		       fork="yes"
-		       maxmemory="256m"
-		       dir="${basedir}"
-		       errorProperty="tests.failed"
-		       failureProperty="tests.failed">
-			<classpath>
-				<pathelement location="${build.dir.main-classes}" />
-				<pathelement location="${build.dir.test-classes}" />
-				<pathelement location="${build.dir.it-classes}" />
-				<pathelement location="${main.res.dir}" />
-				<pathelement location="${test.res.dir}" />
-				<pathelement location="${it.res.dir}" />
-				<path refid="test.classpath" />
-				<fileset file="${build.dir}/${ant.project.name}.jar" />
-			</classpath>
-			<formatter type="plain" />
-
-			<batchtest fork="yes" todir="${build.dir.it-reports}">
-				<fileset dir="${it.src.dir}">
-					<include name="**/*Test*.java" unless="testcase" />
-				</fileset>
-			</batchtest>
-		</junit>
-		<fail if="tests.failed">Integration tests failed!</fail>
-	</target>
-
-
-	<!-- ================================================================== -->
-	<!-- Multi target build                                                -->
-	<!-- ================================================================== -->
-
-	<target name="test-all"
-			depends="test, test-it"
-			description="--> run all tests">
-	</target>
 
 	<target name="compile-all"
-			depends="compile, compile-test, compile-integration-test"
+			depends="compile, compile-test"
 			description="--> compile all files including tests">
 	</target>
 
 	<!-- ================================================================== -->
-	<!-- Build jar of sources                                               -->
+	<!-- Build jar                                                          -->
 	<!-- ================================================================== -->
 
 	<target name="jar" depends="compile">
@@ -266,7 +197,7 @@
 	<!-- ================================================================== -->
 
 	<target name="install"
-			depends="test-all, mvn-install"
+			depends="test, jar, mvn-install"
 			description="--> install SNAPSHOT jar to local repository">
 	</target>
 
@@ -283,7 +214,6 @@
 		         classpathref="compile.classpath" />
 		<mkdir dir="${build.dir.main-classes-eclipse}" />
 		<mkdir dir="${build.dir.test-classes-eclipse}" />
-		<mkdir dir="${build.dir.it-classes-eclipse}" />
 
 		<eclipse>
 			<settings>
@@ -304,10 +234,6 @@
 				        output="${build.dir.test-classes-eclipse}" />
 				<source path="${basedir}/src/test/resources"
 				        output="${build.dir.test-classes-eclipse}" />
-				<source path="${basedir}/src/it/java"
-				        output="${build.dir.it-classes-eclipse}" />
-				<source path="${basedir}/src/it/resources"
-				        output="${build.dir.it-classes-eclipse}" />
 
 				<output path="${build.dir.main-classes-eclipse}" />
 				<library pathref="test.classpath" exported="false" />

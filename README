@@ -1,0 +1,67 @@
+===============================
+Introduction
+===============================
+
+cascading.avro is a Cascading Scheme for the Apache Avro serialization format,
+which has been publicly released by Bixo Labs under the Apache license.
+
+This means you can use avro as the source of tuples for a Cascading
+flow, and as a sink for saving results. This is particularly useful when
+you need to exchange data with other programming languages, as Avro is both
+efficient and cross-language.
+
+Information about Avro is available from http://hadoop.apache.org/avro/
+and also http://wiki.apache.org/hadoop/Avro
+
+===============================
+Design
+===============================
+
+When you create an AvroSchema, you specify the fields and types (classes) of
+each field. This lets the schema auto-generate a corresponding Avro scheme,
+for both reading and writing data.
+
+===============================
+Example
+===============================
+
+  
+===============================
+Limitations
+===============================
+
+Well, it doesn't actually do anything yet.
+
+===============================
+Known Issues
+===============================
+
+Avro doesn't work properly with standard Hadoop installations prior to 0.21, since
+Hadoop includes an older version (1.0.1) of the Jackson jar that is required by Avro,
+and Avro uses some newer APIs.
+
+===============================
+Building
+===============================
+
+You need Apache Ant 1.7 or higher, and a git client.
+
+1. Download source from GitHub
+
+% git clone git://github.com/bixolabs/cascading.avro.git
+% cd cascading.avro
+
+2. Build the jar
+
+% ant clean jar
+
+or to build and install the jar in your local Maven repo:
+
+% ant clean install
+
+3. Create Eclipse project files
+
+% ant eclipse
+
+Then, from Eclipse follow the standard procedure to import an existing Java project into your Workspace.
+

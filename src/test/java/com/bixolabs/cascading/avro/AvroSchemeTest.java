@@ -124,7 +124,7 @@ public class AvroSchemeTest {
         int i = 0;
         while (sinkTuples.hasNext()){
             TupleEntry t = sinkTuples.next();
-            String expected = makeStringValue("stringValue", i);
+            String expected = makeStringValue("stringValue", i)  + "\t" + Integer.toString(i);
             assertEquals(expected, t.get(0));
             i++;
         }
@@ -133,7 +133,7 @@ public class AvroSchemeTest {
 
 
     private String makeStringValue(String str, int i) {
-        return str + "-" + i + "\t" + Integer.toString(i);
+        return str + "-" + i;
     }
    
     

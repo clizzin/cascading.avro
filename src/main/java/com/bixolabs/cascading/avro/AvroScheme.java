@@ -49,6 +49,8 @@ public class AvroScheme extends Scheme {
     private String _jsonSchema;
     private Class _specificRecordClass = null;
 
+    private transient Schema _schema;
+    
     public AvroScheme(Fields schemeFields, Class specificRecordClass, String jsonSchema) {
         super(schemeFields, schemeFields);
         _specificRecordClass  = specificRecordClass;
@@ -72,23 +74,33 @@ public class AvroScheme extends Scheme {
         _schemeFields = schemeFields;
     }
 
+    private Schema getSchema() {
+        if (_schema == null) {
+            _schema = Schema.parse(_jsonSchema);
+        }
+        
+        return _schema;
+    }
+    
     @Override
     public void sinkInit(Tap tap, JobConf conf) throws IOException {
+        Schema schema = getSchema();
         
         if (_specificRecordClass != null) {
-            AvroJob.setOutputSpecific(conf, _jsonSchema);
+            AvroJob.setOutputSpecific(conf, schema);
         } else {
-            AvroJob.setOutputGeneric(conf, _jsonSchema);
+            AvroJob.setOutputGeneric(conf, schema);
         }
         LOGGER.info(String.format("Initializing Avro scheme for sink tap - scheme fields: %s", _schemeFields));
     }
 
     public void sourceInit(Tap tap, JobConf conf) throws IOException {
+        Schema schema = getSchema();
 
         if (_specificRecordClass != null) {
-            AvroJob.setInputSpecific(conf, _jsonSchema);
+            AvroJob.setInputSpecific(conf, schema);
         } else {
-            AvroJob.setInputGeneric(conf, _jsonSchema);
+            AvroJob.setInputGeneric(conf, schema);
         }
         LOGGER.info(String.format("Initializing Avro scheme for source tap - scheme fields: %s", _schemeFields));
     }
@@ -104,10 +116,11 @@ public class AvroScheme extends Scheme {
             // TODO Figure out how to pass in a specific record
         } else {
             // Create a Generic data using the sink field names
-            GenericData.Record datum = new GenericData.Record(Schema.parse(_jsonSchema));
+            GenericData.Record datum = new GenericData.Record(getSchema());
             for (int i = 0; i < sinkFields.size(); i++) {
                 datum.put(sinkFields.get(i).toString(), result.get(i));
             }
+            
             AvroWrapper<GenericData.Record> wrapper = new AvroWrapper<GenericData.Record>(datum) ;
             outputCollector.collect(wrapper, NullWritable.get());
        }

@@ -22,7 +22,6 @@ import java.util.Collection;
 
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapred.JobConf;
-import org.apache.avro.Schema;
 
 /** Setters to configure jobs for Avro data. */
 public class AvroJob {
@@ -41,46 +40,46 @@ public class AvroJob {
   static final String OUTPUT_API = "avro.output.api";
 
   /** Configure a job's map input to use Avro's generic API. */
-  public static void setInputGeneric(JobConf job, Schema s) {
+  public static void setInputGeneric(JobConf job, String jsonSchema) {
     job.set(INPUT_API, API_GENERIC);
-    configureAvroInput(job, s);
+    configureAvroInput(job, jsonSchema);
   }
 
   /** Configure a job's map input to use Avro's specific API. */
-  public static void setInputSpecific(JobConf job, Schema s) {
+  public static void setInputSpecific(JobConf job, String jsonSchema) {
     job.set(INPUT_API, API_SPECIFIC);
-    configureAvroInput(job, s);
+    configureAvroInput(job, jsonSchema);
   }
 
-  private static void configureAvroInput(JobConf job, Schema s) {
-    job.set(INPUT_SCHEMA, s.toString());
+  private static void configureAvroInput(JobConf job, String jsonSchema) {
+    job.set(INPUT_SCHEMA, jsonSchema);
     job.setInputFormat(AvroInputFormat.class);
   }
 
   /** Configure a job's map output key schema using Avro's generic API. */
-  public static void setMapOutputGeneric(JobConf job, Schema s) {
-    job.set(MAP_OUTPUT_SCHEMA, s.toString());
+  public static void setMapOutputGeneric(JobConf job, String jsonSchema) {
+    job.set(MAP_OUTPUT_SCHEMA, jsonSchema);
     job.set(MAP_OUTPUT_API, API_GENERIC);
     configureAvroOutput(job);
   }
 
   /** Configure a job's map output key schema using Avro's specific API. */
-  public static void setMapOutputSpecific(JobConf job, Schema s) {
-    job.set(MAP_OUTPUT_SCHEMA, s.toString());
+  public static void setMapOutputSpecific(JobConf job, String jsonSchema) {
+    job.set(MAP_OUTPUT_SCHEMA, jsonSchema);
     job.set(MAP_OUTPUT_API, API_SPECIFIC);
     configureAvroOutput(job);
   }
 
   /** Configure a job's output key schema using Avro's generic API. */
-  public static void setOutputGeneric(JobConf job, Schema s) {
-    job.set(OUTPUT_SCHEMA, s.toString());
+  public static void setOutputGeneric(JobConf job, String jsonSchema) {
+    job.set(OUTPUT_SCHEMA, jsonSchema);
     job.set(OUTPUT_API, API_GENERIC);
     configureAvroOutput(job);
   }
 
   /** Configure a job's output key schema using Avro's specific API. */
-  public static void setOutputSpecific(JobConf job, Schema s) {
-    job.set(OUTPUT_SCHEMA, s.toString());
+  public static void setOutputSpecific(JobConf job, String jsonSchema) {
+    job.set(OUTPUT_SCHEMA, jsonSchema);
     job.set(OUTPUT_API, API_SPECIFIC);
     configureAvroOutput(job);
   }

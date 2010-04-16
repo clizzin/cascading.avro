@@ -21,14 +21,18 @@ package com.bixolabs.cascading.avro;
 
 import java.io.IOException;
 
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.mapred.AvroJob;
+import org.apache.avro.mapred.AvroWrapper;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.log4j.Logger;
 
+
 import cascading.scheme.Scheme;
 import cascading.tap.Tap;
-import cascading.tap.TapException;
 import cascading.tuple.Fields;
 import cascading.tuple.Tuple;
 import cascading.tuple.TupleEntry;
@@ -42,55 +46,91 @@ public class AvroScheme extends Scheme {
     private static final Logger LOGGER = Logger.getLogger(AvroScheme.class);
 
     private Fields _schemeFields;
-    private Class[] _schemeTypes;
+    private String _jsonSchema;
+    private Class _specificRecordClass = null;
+
+    public AvroScheme(Fields schemeFields, Class specificRecordClass, String jsonSchema) {
+        super(schemeFields, schemeFields);
+        _specificRecordClass  = specificRecordClass;
+        throw new UnsupportedOperationException("This isn't currently working");
+    }
     
-    public AvroScheme(Fields schemeFields, Class[] schemeTypes) {
+    public AvroScheme(Fields schemeFields, String jsonSchema) {
         super(schemeFields, schemeFields);
         
+        // TODO - only allow records in the schema ?
+        Schema schema = Schema.parse(jsonSchema);
+        if (schema.getFields().size() < schemeFields.size()) {
+            throw new IllegalArgumentException("There are more scheme fields than those defined in the AVRO schema");
+        }
+        _jsonSchema = jsonSchema;
+
         if (schemeFields.size() == 0) {
             throw new IllegalArgumentException("There must be at least one field");
         }
         
-        if (schemeTypes.length != schemeFields.size()) {
-            throw new IllegalArgumentException("You must have a schemeType for every field");
-        }
-
         _schemeFields = schemeFields;
-        _schemeTypes = schemeTypes;
     }
 
     @Override
     public void sinkInit(Tap tap, JobConf conf) throws IOException {
         
-        // TODO - make it so. We need to build an Avro schema from the _schemeFields & _schemeTypes,
-        // and use that to configure it properly.
-        
-        LOGGER.info(String.format("Initializing Avro scheme for sink tap - scheme fields: %s and scheme classes: %s", _schemeFields, _schemeTypes));
+        if (_specificRecordClass != null) {
+            AvroJob.setOutputSpecific(conf, _jsonSchema);
+        } else {
+            AvroJob.setOutputGeneric(conf, _jsonSchema);
+        }
+        LOGGER.info(String.format("Initializing Avro scheme for sink tap - scheme fields: %s", _schemeFields));
     }
 
     public void sourceInit(Tap tap, JobConf conf) throws IOException {
 
-        // TODO - make it so. We need to build an Avro schema from the _schemeFields & _schemeTypes,
-        // and use that to configure it properly.
-        
-        LOGGER.info(String.format("Initializing Avro scheme for source tap - scheme fields: %s and scheme classes: %s", _schemeFields, _schemeTypes));
+        if (_specificRecordClass != null) {
+            AvroJob.setInputSpecific(conf, _jsonSchema);
+        } else {
+            AvroJob.setInputGeneric(conf, _jsonSchema);
+        }
+        LOGGER.info(String.format("Initializing Avro scheme for source tap - scheme fields: %s", _schemeFields));
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public void sink(TupleEntry tupleEntry, OutputCollector outputCollector) throws IOException {
-        Tuple result = getSinkFields() != null ? tupleEntry.selectTuple(getSinkFields()) : tupleEntry.getTuple();
+        // Create the appropriate AvroWrapper<T> from the result, and pass that as the key for the collect
+        Fields sinkFields = getSinkFields();
+        Tuple result = sinkFields != null ? tupleEntry.selectTuple(sinkFields) : tupleEntry.getTuple();
 
-        // TODO - create the appropriate AvroWrapper<T> from the result, and pass that as the key for the collect
-        
-        outputCollector.collect(null, NullWritable.get());
+        if (_specificRecordClass != null) {
+            // TODO Figure out how to pass in a specific record
+        } else {
+            // Create a Generic data using the sink field names
+            GenericData.Record datum = new GenericData.Record(Schema.parse(_jsonSchema));
+            for (int i = 0; i < sinkFields.size(); i++) {
+                datum.put(sinkFields.get(i).toString(), result.get(i));
+            }
+            AvroWrapper<GenericData.Record> wrapper = new AvroWrapper<GenericData.Record>(datum) ;
+            outputCollector.collect(wrapper, NullWritable.get());
+       }
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    public Tuple source(Object key, Object value) {
-        // TODO - convert the AvroWrapper<T> key value to a tuple.
-        
-        return (Tuple)null;
+    public Tuple source(Object key, Object ignore) {
+        // Convert the AvroWrapper<T> key value to a tuple.
+       Tuple result = new Tuple();
+
+        Fields sourceFields = getSourceFields();
+        if (_specificRecordClass != null) {
+            // TODO there's just one object of the specific kind so just pass that along
+        } else {
+            // Unpack this datum into source tuple fields
+            AvroWrapper<GenericData.Record> wrapper = (AvroWrapper<GenericData.Record>)key;
+            GenericData.Record datum = wrapper.datum();
+            for (int i = 0; i < sourceFields.size(); i++) {
+                result.add(datum.get(sourceFields.get(i).toString()));
+            }
+        }
+        return result;
     }
 
     // TODO - add hashcode and equals, once we have the fields settled.

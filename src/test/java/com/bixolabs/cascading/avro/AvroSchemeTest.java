@@ -10,7 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.avro.Schema;
+import org.apache.avro.file.DataFileReader;
+import org.apache.avro.generic.GenericDatumReader;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.mapred.JobConf;
@@ -94,6 +95,7 @@ public class AvroSchemeTest {
     }
 
     
+    @SuppressWarnings("unchecked")
     @Test
     public void testRoundTrip() throws Exception {
         
@@ -212,31 +214,18 @@ public class AvroSchemeTest {
         }
         
         assertEquals(numRecords, i);
-    }
-
-
-    private String makeStringValue(String str, int i) {
-        return str + "-" + i;
-    }
-   
-
-    private void makeSourceTuples(Lfs lfs, int numTuples) throws IOException {
-        TupleEntryCollector write = lfs.openForWrite(new JobConf());
-        // Tuple -> Array<Long> String, Map<String> Long
-        for (int i = 0; i < numTuples; i++) {
-            Tuple t = new Tuple();
-            Tuple arrTuple = new Tuple();
-            arrTuple.addAll(new Long(60 + i), new Long(70 + i));
-            t.add(arrTuple);
-            t.add(makeStringValue("stringValue", i));
-            Tuple mapTuple = new Tuple();
-            mapTuple.addAll("mapKey-" + i, "mapVal-" + i);
-            t.add(mapTuple);
-            Long longVal = new Long(i);
-            t.add(longVal);
-            write.add(t);
+        
+        // Ensure that the Avro file we write out is readable via the standard Avro API
+        File avroFile = new File(out + "/part-00000.avro");
+        DataFileReader<Object> reader =
+            new DataFileReader<Object>(avroFile, new GenericDatumReader<Object>());     
+        i = 0;
+        while (reader.hasNext()) {
+            reader.next();
+            i++;
         }
-        write.close();
+        assertEquals(numRecords, i);
+
     }
 
  }

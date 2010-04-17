@@ -188,13 +188,12 @@ public class AvroScheme extends Scheme {
 
     
     private Object convertFromAvroPrimitive(Object inObj, Class inType) {
-        Class curType = inObj.getClass();
-        if (curType == Utf8.class) {
+        if (inType == String.class) {
             String convertedObj =  ((Utf8)inObj).toString();
             return convertedObj;
-        } else if (curType == BytesWritable.class) {
+        } else if (inType == BytesWritable.class) {
             return new BytesWritable(((ByteBuffer)inObj).array());
-        } 
+        }
 
         return inObj;
     }
@@ -226,10 +225,11 @@ public class AvroScheme extends Scheme {
     private Object convertToAvroPrimitive(Object inObj, Class curType) {
         
         if (curType == String.class) {
-            Utf8 convertedObj = new Utf8((String) inObj);
+            Utf8 convertedObj = new Utf8((String)inObj);
             return convertedObj;
         } else if (curType == BytesWritable.class) {
-            ByteBuffer convertedObj = ByteBuffer.wrap(((BytesWritable) inObj).get());
+            BytesWritable bw = (BytesWritable)inObj;
+            ByteBuffer convertedObj = ByteBuffer.wrap(bw.get(), 0, bw.getSize());
             return convertedObj;
         } else {
             return inObj;

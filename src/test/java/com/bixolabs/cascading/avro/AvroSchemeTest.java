@@ -6,10 +6,13 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.avro.Schema;
 import org.apache.commons.io.FileUtils;
+import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.mapred.JobConf;
 import org.junit.Before;
 import org.junit.Test;
@@ -93,26 +96,56 @@ public class AvroSchemeTest {
     
     @Test
     public void testRoundTrip() throws Exception {
-        final Fields testFields = new Fields("arrayOfLongsField", "stringField", "mapOfStringsField", "longField");
-        final Class[] schemeTypes = {List.class, Long.class, String.class, Map.class, String.class, Long.class};
-       final String in = OUTPUT_DIR+ "testRoundTrip/in";
+        
+        // Create a scheme that tests each of the supported types
+
+        final Fields testFields = new Fields("integerField", "longField", "booleanField", "doubleField", "floatField", "stringField", "bytesField", "arrayOfLongsField", "mapOfStringsField");
+        final Class[] schemeTypes = {Integer.class, Long.class, Boolean.class, Double.class, Float.class, String.class, BytesWritable.class, List.class, Long.class, Map.class, String.class};
+        final String in = OUTPUT_DIR+ "testRoundTrip/in";
         final String out = OUTPUT_DIR + "testRoundTrip/out";
         final String verifyout = OUTPUT_DIR + "testRoundTrip/verifyout";
-        final int numRecords = 11; // 0...10
         
-        // Read from Sequence file and write to AVRO
+        final int numRecords = 2;
+        
+        // Create a sequence file with the appropriate tuples
         Lfs lfsSource = new Lfs(new SequenceFile(testFields), in, SinkMode.REPLACE);
-        makeSourceTuples(lfsSource, numRecords);
-        Pipe importPipe = new Pipe("import");
+        TupleEntryCollector write = lfsSource.openForWrite(new JobConf());
+        Tuple t = new Tuple();
+        t.add(0);
+        t.add(0L);
+        t.add(false);
+        t.add(0.0d);
+        t.add(0.0f);
+        t.add("0");
+        t.add(new BytesWritable(new byte[] {0}));
+        t.add(new Tuple(0L));
+        t.add(new Tuple("key-0", "value-0"));
+        write.add(t);
+
+        t = new Tuple();
+        t.add(1);
+        t.add(1L);
+        t.add(true);
+        t.add(1.0d);
+        t.add(1.0f);
+        t.add("1");
+        t.add(new BytesWritable(new byte[] {0, 1}));
+        t.add(new Tuple(0L, 1L));
+        t.add(new Tuple("key-0", "value-0", "key-1", "value-1"));
+        write.add(t);
+
+        write.close();
+
+        // Now read from the results, and write to an Avro file.
+        Pipe writePipe = new Pipe("tuples to avro");
 
         Tap avroSink = new Lfs(new AvroScheme(testFields, schemeTypes), out);
-        Flow flow = new FlowConnector().connect(lfsSource, avroSink, importPipe);
+        Flow flow = new FlowConnector().connect(lfsSource, avroSink, writePipe);
         flow.complete();
         
-        // Not exactly round-trip since we are reading from AVRO and writing to TextLine
-        // (mainly because it can also be manually inspected).
+        // Now read it back in, and verify that the data/types match up.
         Tap avroSource = new Lfs(new AvroScheme(testFields, schemeTypes), out);
-        Pipe readPipe = new Pipe("import");
+        Pipe readPipe = new Pipe("avro to tuples");
         Tap verifySink = new Hfs(new SequenceFile(testFields), verifyout, SinkMode.REPLACE);
 
         Flow readFlow = new FlowConnector().connect(avroSource, verifySink, readPipe);
@@ -122,12 +155,62 @@ public class AvroSchemeTest {
         assertTrue(sinkTuples.hasNext());
         
         int i = 0;
-        while (sinkTuples.hasNext()){
-            TupleEntry t = sinkTuples.next();
-            assertEquals(makeStringValue("stringValue", i), t.getString("stringField"));
-            assertEquals(i, t.getLong("longField"));
+        while (sinkTuples.hasNext()) {
+            TupleEntry te = sinkTuples.next();
+            
+            assertTrue(te.get("integerField") instanceof Integer);
+            assertTrue(te.get("longField") instanceof Long);
+            assertTrue(te.get("booleanField") instanceof Boolean);
+            assertTrue(te.get("doubleField") instanceof Double);
+            assertTrue(te.get("floatField") instanceof Float);
+            assertTrue(te.get("stringField") instanceof String);
+            assertTrue(te.get("bytesField") instanceof BytesWritable);
+            assertTrue(te.get("arrayOfLongsField") instanceof Tuple);
+            assertTrue(te.get("mapOfStringsField") instanceof Tuple);
+            
+            assertEquals(i, te.getInteger("integerField"));
+            assertEquals(i, te.getLong("longField"));
+            assertEquals(i > 0, te.getBoolean("booleanField"));
+            assertEquals((double)i, te.getDouble("doubleField"), 0.0001);
+            assertEquals((float)i, te.getFloat("floatField"), 0.0001);
+            assertEquals("" + i, te.getString("stringField"));
+            
+            int bytesLength = ((BytesWritable)te.get("bytesField")).getSize();
+            byte[] bytes = ((BytesWritable)te.get("bytesField")).get();
+            assertEquals(i + 1, bytesLength);
+            for (int j = 0; j < bytesLength; j++) {
+                assertEquals(j, bytes[j]);
+            }
+            
+            Tuple longArray = (Tuple)te.get("arrayOfLongsField");
+            assertEquals(i + 1, longArray.size());
+            for (int j = 0; j < longArray.size(); j++) {
+                assertTrue(longArray.get(j) instanceof Long);
+                assertEquals(j, longArray.getLong(j));
+            }
+            
+            Tuple stringMap = (Tuple)te.get("mapOfStringsField");
+            int numMapEntries = i + 1;
+            assertEquals(2 * numMapEntries, stringMap.size());
+            
+            // Build a map from the data
+            Map<String, String> testMap = new HashMap<String, String>();
+            for (int j = 0; j < numMapEntries; j++) {
+                assertTrue(stringMap.get(j * 2) instanceof String);
+                String key = stringMap.getString(j * 2);
+                assertTrue(stringMap.get((j * 2) + 1) instanceof String);
+                String value = stringMap.getString((j * 2) + 1);
+                testMap.put(key, value);
+            }
+            
+            // Now make sure it has everything we're expecting.
+            for (int j = 0; j < numMapEntries; j++) {
+                assertEquals("value-" + j, testMap.get("key-" + j));
+            }
+
             i++;
         }
+        
         assertEquals(numRecords, i);
     }
 
@@ -147,7 +230,7 @@ public class AvroSchemeTest {
             t.add(arrTuple);
             t.add(makeStringValue("stringValue", i));
             Tuple mapTuple = new Tuple();
-            mapTuple.addAll("mapVal1-" + i, "mapVal2-" + i);
+            mapTuple.addAll("mapKey-" + i, "mapVal-" + i);
             t.add(mapTuple);
             Long longVal = new Long(i);
             t.add(longVal);

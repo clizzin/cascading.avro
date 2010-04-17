@@ -6,25 +6,18 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
-import org.apache.avro.util.Utf8;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.metrics.spi.NullContext;
 import org.junit.Before;
 import org.junit.Test;
 
 import cascading.flow.Flow;
 import cascading.flow.FlowConnector;
-import cascading.flow.FlowProcess;
-import cascading.operation.BaseOperation;
-import cascading.operation.Function;
-import cascading.operation.FunctionCall;
-import cascading.operation.Identity;
-import cascading.pipe.Each;
 import cascading.pipe.Pipe;
 import cascading.scheme.SequenceFile;
-import cascading.scheme.TextLine;
 import cascading.tap.Hfs;
 import cascading.tap.Lfs;
 import cascading.tap.SinkMode;
@@ -36,14 +29,6 @@ import cascading.tuple.TupleEntryCollector;
 import cascading.tuple.TupleEntryIterator;
 
 public class AvroSchemeTest {
-    private static final String SCHEMA_JSON = 
-                    "{\"type\": \"record\", " 
-                    + "\"name\": \"Test\", " 
-                    + "\"fields\": [" 
-                    + "  {\"name\":\"stringField\", \"type\":\"string\"},"
-                    + "  {\"name\":\"longField\", \"type\":\"long\"}" 
-                    + "  ]" 
-                    + "}";
 
     private static final String OUTPUT_DIR = "build/test/AvroSchmeTest/"; 
     
@@ -56,76 +41,91 @@ public class AvroSchemeTest {
     }
     
     
-    @Test
-    public void testAvroSchemaGeneration() {
-        // TODO
-    }
+//    @Test
+//    public void testAvroSchemaGeneration() {
+//        AvroScheme avroScheme = new AvroScheme(new Fields("a", "b", "c"), 
+//                        new Class[] { List.class, Long.class, Integer.class, BytesWritable.class});
+//        Schema schema = avroScheme.getSchema();
+//        System.out.println(schema.toString());
+//    }
 
     @Test
     public void testSchemeChecks() {
  
         try {
-            new AvroScheme(new Fields("a", "b"), SCHEMA_JSON);
+            new AvroScheme(new Fields("a", "b"), new Class[] { String.class, Long.class });
         } catch (Exception e) {
             fail("Exception should not be thrown - this is the valid case");
         }
 
         try {
-            new AvroScheme(new Fields(), SCHEMA_JSON);
+            new AvroScheme(new Fields(), new Class[] {});
             fail("Exception should be thrown when scheme field is empty");
         } catch (Exception e) {
-            // valid
         }
 
         try {
-            new AvroScheme(new Fields("a"), SCHEMA_JSON);
+            new AvroScheme(new Fields("a", "b", "c"), new Class[] { Integer.class });
+            fail("Exception should be thrown as there are more fields defined than types");
         } catch (Exception e) {
-            fail("Exception should not be thrown - as it is okay to have less fields");
         }
 
         try {
-            new AvroScheme(new Fields("a", "b", "c"), SCHEMA_JSON);
-            fail("Exception should be thrown as there are more fields defined than present in the JSON schema");
+            new AvroScheme(new Fields("a"), new Class[] { Integer.class, String.class });
+            fail("Exception should be thrown as there are more types defined than fields");
         } catch (Exception e) {
         }
+
+        try {
+            new AvroScheme(new Fields("array"), new Class[] { List.class, Long.class });
+        } catch (Exception e) {
+            fail("Exception shouldn't be thrown as array type is valid");
+        }
+
+        try {
+            new AvroScheme(new Fields("array"), new Class[] { List.class, List.class });
+            fail("Exception should be thrown as array type isn't a primitive");
+        } catch (Exception e) {
+        }
+
     }
 
+    
     @Test
     public void testRoundTrip() throws Exception {
-        final Fields testFields = new Fields("stringField", "longField");
-        final String in = OUTPUT_DIR+ "testRoundTrip/in";
+        final Fields testFields = new Fields("arrayOfLongsField", "stringField", "mapOfStringsField", "longField");
+        final Class[] schemeTypes = {List.class, Long.class, String.class, Map.class, String.class, Long.class};
+       final String in = OUTPUT_DIR+ "testRoundTrip/in";
         final String out = OUTPUT_DIR + "testRoundTrip/out";
-        final String textout = OUTPUT_DIR + "testRoundTrip/textout";
+        final String verifyout = OUTPUT_DIR + "testRoundTrip/verifyout";
         final int numRecords = 11; // 0...10
         
         // Read from Sequence file and write to AVRO
         Lfs lfsSource = new Lfs(new SequenceFile(testFields), in, SinkMode.REPLACE);
         makeSourceTuples(lfsSource, numRecords);
-        Pipe importPipe = new Each("import", new Identity());
-        importPipe = new Each(importPipe, testFields, new ConvertSeqToAvro());
+        Pipe importPipe = new Pipe("import");
 
-        Tap avroSink = new Lfs(new AvroScheme(testFields, SCHEMA_JSON), out);
+        Tap avroSink = new Lfs(new AvroScheme(testFields, schemeTypes), out);
         Flow flow = new FlowConnector().connect(lfsSource, avroSink, importPipe);
         flow.complete();
         
         // Not exactly round-trip since we are reading from AVRO and writing to TextLine
         // (mainly because it can also be manually inspected).
-        Tap avroSource = new Lfs(new AvroScheme(testFields, SCHEMA_JSON), out);
-        Pipe readPipe = new Each("import", new Identity());
-        readPipe = new Each(readPipe, testFields, new ConvertAvroToTextLine());
-        Tap textSink = new Hfs(new TextLine(new Fields("line")), textout, SinkMode.REPLACE);
+        Tap avroSource = new Lfs(new AvroScheme(testFields, schemeTypes), out);
+        Pipe readPipe = new Pipe("import");
+        Tap verifySink = new Hfs(new SequenceFile(testFields), verifyout, SinkMode.REPLACE);
 
-        Flow readFlow = new FlowConnector().connect(avroSource, textSink, readPipe);
+        Flow readFlow = new FlowConnector().connect(avroSource, verifySink, readPipe);
         readFlow.complete();
 
-        TupleEntryIterator sinkTuples = textSink.openForRead(new JobConf());
+        TupleEntryIterator sinkTuples = verifySink.openForRead(new JobConf());
         assertTrue(sinkTuples.hasNext());
         
         int i = 0;
         while (sinkTuples.hasNext()){
             TupleEntry t = sinkTuples.next();
-            String expected = makeStringValue("stringValue", i)  + "\t" + Integer.toString(i);
-            assertEquals(expected, t.get(0));
+            assertEquals(makeStringValue("stringValue", i), t.getString("stringField"));
+            assertEquals(i, t.getLong("longField"));
             i++;
         }
         assertEquals(numRecords, i);
@@ -136,59 +136,24 @@ public class AvroSchemeTest {
         return str + "-" + i;
     }
    
-    
 
     private void makeSourceTuples(Lfs lfs, int numTuples) throws IOException {
         TupleEntryCollector write = lfs.openForWrite(new JobConf());
-        // Tuple -> String, Long
+        // Tuple -> Array<Long> String, Map<String> Long
         for (int i = 0; i < numTuples; i++) {
             Tuple t = new Tuple();
+            Tuple arrTuple = new Tuple();
+            arrTuple.addAll(new Long(60 + i), new Long(70 + i));
+            t.add(arrTuple);
             t.add(makeStringValue("stringValue", i));
-            long longVal = i;
+            Tuple mapTuple = new Tuple();
+            mapTuple.addAll("mapVal1-" + i, "mapVal2-" + i);
+            t.add(mapTuple);
+            Long longVal = new Long(i);
             t.add(longVal);
             write.add(t);
         }
         write.close();
     }
 
-    @SuppressWarnings("serial")
-    private static class ConvertSeqToAvro extends BaseOperation<NullContext> implements Function<NullContext> {
-
-        public ConvertSeqToAvro() throws IOException {
-            super(new Fields("stringField", "longField"));
-        }
-
-        @Override
-        public void operate(FlowProcess arg0, FunctionCall<NullContext> funcCall) {
-            Tuple inTuple = funcCall.getArguments().getTuple();
-            Tuple convertedDatum = new Tuple();
-            Utf8 utfStr = new Utf8((String)inTuple.getObject(0));
-            convertedDatum.add(utfStr);
-            convertedDatum.add(inTuple.getObject(1));
- 
-            funcCall.getOutputCollector().add(convertedDatum);
-        }
-
-    }
-    
-    @SuppressWarnings("serial")
-    private static class ConvertAvroToTextLine extends BaseOperation<NullContext> implements Function<NullContext> {
-
-        public ConvertAvroToTextLine() throws IOException {
-            super(new Fields("line"));
-        }
-
-        @Override
-        public void operate(FlowProcess arg0, FunctionCall<NullContext> funcCall) {
-            Tuple inTuple = funcCall.getArguments().getTuple();
-            Tuple convertedDatum = new Tuple();
-           
-            Utf8 utfStr = (Utf8)inTuple.getObject(0);
-            String convertedStr = utfStr.toString() + "\t" + inTuple.getObject(1);
-            convertedDatum.add(convertedStr);
-            funcCall.getOutputCollector().add(convertedDatum);
-        }
-
-    }
-
-}
+ }

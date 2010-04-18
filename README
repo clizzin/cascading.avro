@@ -5,7 +5,7 @@ Introduction
 cascading.avro is a Cascading Scheme for the Apache Avro serialization format,
 which has been publicly released by Bixo Labs under the Apache license.
 
-This means you can use avro as the source of tuples for a Cascading
+This means you can use Avro as the source of tuples for a Cascading
 flow, and as a sink for saving results. This is particularly useful when
 you need to exchange data with other programming languages, as Avro is both
 efficient and cross-language.
@@ -21,16 +21,46 @@ When you create an AvroSchema, you specify the fields and types (classes) of
 each field. This lets the schema auto-generate a corresponding Avro scheme,
 for both reading and writing data.
 
+The set of supported types, with the corresponding Avro type, is:
+
+	Integer.class, Schema.Type.INT
+ 	Long.class, Schema.Type.LONG
+	Boolean.class, Schema.Type.BOOLEAN
+	Double.class, Schema.Type.DOUBLE
+	Float.class, Schema.Type.FLOAT
+	String.class, Schema.Type.STRING
+	BytesWritable.class, Schema.Type.BYTES
+	List.class, Schema.Type.ARRAY
+	Map.class, Schema.Type.MAP
+
+See below for how the List and Map types are actually represented in a Tuple as a
+nested Tuple.
+
 ===============================
 Example
 ===============================
 
+	final Fields cascadingFields = new Fields("id", "timestamp", "statusMsg", "content");
+	final Class<?>[] schemeTypes = {Integer.class, Long.class, String.class, BytesWritable.class};
+	Tap avroSource = new Hfs(new AvroScheme(cascadingFields, schemeTypes), "outputdir");
   
+  	...hook up your Cascading workflow here...
+  	
 ===============================
 Limitations
 ===============================
 
-Well, it doesn't actually do anything yet.
+There's currently no way to set the metadata for the generated Avro file, nor is there
+any way to read that data back in.
+
+The support for arrays and maps is rudimentary and kludgy. Since these aren't natively
+supported by Cascading yet (as of 1.1), we imitate this by nesting Tuples into the Tuple.
+So an array item is a Tuple of 0...n primitive values, and a map is a Tuple that contains
+alternative key/value pairs. Note that Avro maps always use a String as the key, so that
+same constraint exists on the Cascading side.
+
+There's no support for using anything other than primitive types as values, so you can't
+leverage Avro support for nesting records/maps/arrays as fields in the Avro record.
 
 ===============================
 Known Issues
@@ -38,7 +68,9 @@ Known Issues
 
 Avro doesn't work properly with standard Hadoop installations prior to 0.21, since
 Hadoop includes an older version (1.0.1) of the Jackson jar that is required by Avro,
-and Avro uses some newer APIs.
+and Avro uses some newer APIs. So you'll have to sculpt the Hadoop setup to exclude
+that older Jackson jar, or play games with the classloader to ensure the newer jar
+gets used with your job.
 
 ===============================
 Building

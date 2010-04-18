@@ -12,9 +12,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
- * Based on cascading.jdbc code released into the public domain by
- * Concurrent, Inc.
  */
 
 package com.bixolabs.cascading.avro;
@@ -249,6 +246,7 @@ public class AvroScheme extends Scheme {
     private Object convertToAvroArray(Object inObj, Class<?> arrayClass) {
         Tuple tuple = (Tuple)inObj;
         
+        // TODO VMa - verify that each tuple value item has the same (primitive) type.
         GenericData.Array arr = new GenericData.Array(tuple.size(), Schema.createArray(Schema.create(toAvroSchemaType(arrayClass))));
         for (int i = 0; i < tuple.size(); i++) {
             arr.add(convertToAvroPrimitive(tuple.getObject(i), arrayClass));
@@ -259,6 +257,9 @@ public class AvroScheme extends Scheme {
     private Object convertToAvroMap(Object inObj, Class<?> valClass) {
         Tuple tuple = (Tuple)inObj;
         
+        // TODO VMa - verify that tuple size is a power of 2
+        // TODO VMa - verify that each tuple key item is a string, and
+        // each tuple value item has the same (primitive, only) type.
         Map<Utf8, Object>convertedObj =  new HashMap<Utf8, Object>();
         for (int i = 0; i < tuple.size(); i+=2) {
             // the tuple entries are key followed by value

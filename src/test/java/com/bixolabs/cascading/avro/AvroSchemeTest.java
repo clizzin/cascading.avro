@@ -95,14 +95,13 @@ public class AvroSchemeTest {
     }
 
     
-    @SuppressWarnings("unchecked")
     @Test
     public void testRoundTrip() throws Exception {
         
         // Create a scheme that tests each of the supported types
 
         final Fields testFields = new Fields("integerField", "longField", "booleanField", "doubleField", "floatField", "stringField", "bytesField", "arrayOfLongsField", "mapOfStringsField");
-        final Class[] schemeTypes = {Integer.class, Long.class, Boolean.class, Double.class, Float.class, String.class, BytesWritable.class, List.class, Long.class, Map.class, String.class};
+        final Class<?>[] schemeTypes = {Integer.class, Long.class, Boolean.class, Double.class, Float.class, String.class, BytesWritable.class, List.class, Long.class, Map.class, String.class};
         final String in = OUTPUT_DIR+ "testRoundTrip/in";
         final String out = OUTPUT_DIR + "testRoundTrip/out";
         final String verifyout = OUTPUT_DIR + "testRoundTrip/verifyout";

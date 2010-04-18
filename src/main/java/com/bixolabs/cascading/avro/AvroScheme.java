@@ -50,17 +50,17 @@ import cascading.tuple.TupleEntry;
  */
 @SuppressWarnings("serial")
 public class AvroScheme extends Scheme {
-    public static final Class ARRAY_CLASS = List.class;
-    public static final Class MAP_CLASS = Map.class;
+    public static final Class<?> ARRAY_CLASS = List.class;
+    public static final Class<?> MAP_CLASS = Map.class;
 
     private static final Logger LOGGER = Logger.getLogger(AvroScheme.class);
     private Fields _schemeFields;
-    private Class[] _schemeTypes;
-    private HashMap<Class, Schema.Type> _typeMap = createTypeMap();
+    private Class<?>[] _schemeTypes;
+    private HashMap<Class<?>, Schema.Type> _typeMap = createTypeMap();
     
     private transient Schema _schema;
     
-    public AvroScheme(Fields schemeFields, Class[] schemeTypes) {
+    public AvroScheme(Fields schemeFields, Class<?>[] schemeTypes) {
         super(schemeFields, schemeFields);
         
         validateFields(schemeFields, schemeTypes);
@@ -69,6 +69,7 @@ public class AvroScheme extends Scheme {
         _schemeTypes = schemeTypes;
     }
 
+    @Override
     public void sourceInit(Tap tap, JobConf conf) throws IOException {
         Schema schema = getSchema();
     
@@ -84,6 +85,7 @@ public class AvroScheme extends Scheme {
         LOGGER.info(String.format("Initializing Avro scheme for sink tap - scheme fields: %s", _schemeFields));
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public Tuple source(Object key, Object ignore) {
         // Convert the AvroWrapper<T> key value to a tuple.
@@ -95,7 +97,7 @@ public class AvroScheme extends Scheme {
         AvroWrapper<GenericData.Record> wrapper = (AvroWrapper<GenericData.Record>) key;
         GenericData.Record datum = wrapper.datum();
         for (int fieldIndex = 0, typeIndex = 0; fieldIndex < sourceFields.size(); fieldIndex++, typeIndex++) {
-            Class curType = _schemeTypes[typeIndex];
+            Class<?> curType = _schemeTypes[typeIndex];
             String fieldName = sourceFields.get(fieldIndex).toString();
             Object inObj = datum.get(fieldName);
             if (curType == ARRAY_CLASS) {
@@ -111,6 +113,7 @@ public class AvroScheme extends Scheme {
         return result;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void sink(TupleEntry tupleEntry, OutputCollector outputCollector) throws IOException {
         // Create the appropriate AvroWrapper<T> from the result, and pass that as the key for the collect
@@ -122,7 +125,7 @@ public class AvroScheme extends Scheme {
         for (int fieldIndex = 0, typeIndex = 0; fieldIndex < sinkFields.size(); fieldIndex++, typeIndex++) {
 
             String fieldName = sinkFields.get(fieldIndex).toString();
-            Class curType = _schemeTypes[typeIndex];
+            Class<?> curType = _schemeTypes[typeIndex];
             if (curType == ARRAY_CLASS) {
                 typeIndex++;
                 datum.put(fieldName, convertToAvroArray(result.get(fieldIndex), _schemeTypes[typeIndex]));
@@ -138,23 +141,27 @@ public class AvroScheme extends Scheme {
         outputCollector.collect(wrapper, NullWritable.get());
     }
 
-    
+    /*
+     * Cascading serializes the object and stashes it in the conf. Since Schema
+     * isn't Serializable we work around it by making it a transient field and
+     * getting to it at execution time.
+     */
     private Schema getSchema() {
         if (_schema == null) {
             _schema = generateSchema(_schemeFields, _schemeTypes, 0);
         }
-        
+
         return _schema;
     }
 
-    private Schema generateSchema(Fields schemeFields, Class[] schemeTypes, int depth) {
+    private Schema generateSchema(Fields schemeFields, Class<?>[] schemeTypes, int depth) {
         // Create a 'record' that is made up of fields.
         // Since we support arrays and maps that means we can have nested records
         
         List<Schema.Field> fields = new ArrayList<Schema.Field>();
         for (int typeIndex = 0, fieldIndex = 0; typeIndex < schemeTypes.length; typeIndex++, fieldIndex++) {
             String fieldName = schemeFields.get(fieldIndex).toString();
-            Class[] subSchemeTypes = new Class[2]; // at most 2
+            Class<?>[] subSchemeTypes = new Class[2]; // at most 2, since we only allow primitive types for arrays and maps
             subSchemeTypes[0] = schemeTypes[typeIndex];
             if (schemeTypes[typeIndex] == ARRAY_CLASS || schemeTypes[typeIndex] == MAP_CLASS) {
                 typeIndex++;
@@ -169,15 +176,16 @@ public class AvroScheme extends Scheme {
         return schema;
     }
 
-    private Schema createAvroSchema(Fields schemeFields, Class[] fieldTypes, int depth) {
-        
+    @SuppressWarnings("static-access")
+    private Schema createAvroSchema(Fields schemeFields, Class<?>[] fieldTypes, int depth) {
         Schema.Type avroType = toAvroSchemaType(fieldTypes[0]);
+        
         if (avroType == Schema.Type.ARRAY) {
-            Class arrayTypes[] = {fieldTypes[1]};
+            Class<?> arrayTypes[] = {fieldTypes[1]};
            Schema schema = Schema.createArray(createAvroSchema(schemeFields.offsetSelector(schemeFields.size()-1, 1), arrayTypes, depth+1));
            return schema;
         } else if (avroType == Schema.Type.MAP) {
-            Class mapTypes[] = {fieldTypes[1]};
+            Class<?> mapTypes[] = {fieldTypes[1]};
             return Schema.createMap(createAvroSchema(schemeFields.offsetSelector(schemeFields.size()-1, 1), mapTypes, depth+1));
         } else if (avroType == Schema.Type.RECORD){
             return generateSchema(schemeFields.offsetSelector(schemeFields.size()-1, 1), fieldTypes, depth+1);
@@ -187,7 +195,7 @@ public class AvroScheme extends Scheme {
     }
 
     
-    private Object convertFromAvroPrimitive(Object inObj, Class inType) {
+    private Object convertFromAvroPrimitive(Object inObj, Class<?> inType) {
         if (inType == String.class) {
             String convertedObj =  ((Utf8)inObj).toString();
             return convertedObj;
@@ -198,12 +206,13 @@ public class AvroScheme extends Scheme {
         return inObj;
     }
 
-    private Object convertFromAvroArray(Object inObj, Class arrayType) {
-        GenericData.Array arr = (GenericData.Array) inObj;
+    private Object convertFromAvroArray(Object inObj, Class<?> arrayType) {
         // Since Cascading doesn't have support for arrays - we are using a Tuple to store 
         // the array.
+        
+        GenericData.Array<?> arr = (GenericData.Array<?>) inObj;
         Tuple arrayTuple = new Tuple();
-        Iterator iter = arr.iterator();
+        Iterator<?> iter = arr.iterator();
         while (iter.hasNext()) {
             arrayTuple.add(convertFromAvroPrimitive(iter.next(), arrayType));
         }
@@ -211,10 +220,11 @@ public class AvroScheme extends Scheme {
     }
     
     
-    private Object convertFromAvroMap(Object inObj, Class mapValueClass) {
-
-        Tuple convertedMapTuple =  new Tuple();
+    @SuppressWarnings("unchecked")
+    private Object convertFromAvroMap(Object inObj, Class<?> mapValueClass) {
         Map<Utf8, Object> inMap = (Map<Utf8, Object>) inObj;
+        
+        Tuple convertedMapTuple =  new Tuple();
         for (Map.Entry<Utf8, Object> e : inMap.entrySet()) {
             convertedMapTuple.add(e.getKey().toString());
             convertedMapTuple.add(convertFromAvroPrimitive(e.getValue(), mapValueClass));
@@ -222,8 +232,7 @@ public class AvroScheme extends Scheme {
         return convertedMapTuple;
     }
 
-    private Object convertToAvroPrimitive(Object inObj, Class curType) {
-        
+    private Object convertToAvroPrimitive(Object inObj, Class<?> curType) {
         if (curType == String.class) {
             Utf8 convertedObj = new Utf8((String)inObj);
             return convertedObj;
@@ -236,8 +245,10 @@ public class AvroScheme extends Scheme {
         }
     }
 
-    private Object convertToAvroArray(Object inObj, Class arrayClass) {
+    @SuppressWarnings("unchecked")
+    private Object convertToAvroArray(Object inObj, Class<?> arrayClass) {
         Tuple tuple = (Tuple)inObj;
+        
         GenericData.Array arr = new GenericData.Array(tuple.size(), Schema.createArray(Schema.create(toAvroSchemaType(arrayClass))));
         for (int i = 0; i < tuple.size(); i++) {
             arr.add(convertToAvroPrimitive(tuple.getObject(i), arrayClass));
@@ -245,8 +256,9 @@ public class AvroScheme extends Scheme {
         return arr;
     }
 
-    private Object convertToAvroMap(Object inObj, Class valClass) {
+    private Object convertToAvroMap(Object inObj, Class<?> valClass) {
         Tuple tuple = (Tuple)inObj;
+        
         Map<Utf8, Object>convertedObj =  new HashMap<Utf8, Object>();
         for (int i = 0; i < tuple.size(); i+=2) {
             // the tuple entries are key followed by value
@@ -255,9 +267,9 @@ public class AvroScheme extends Scheme {
         return convertedObj;
     }
 
-    @SuppressWarnings("unchecked")
-    private static HashMap<Class, Schema.Type> createTypeMap() {
-            HashMap<Class, Schema.Type> typeMap = new HashMap<Class, Schema.Type>();
+    private static HashMap<Class<?>, Schema.Type> createTypeMap() {
+            HashMap<Class<?>, Schema.Type> typeMap = new HashMap<Class<?>, Schema.Type>();
+            
             typeMap.put(Integer.class, Schema.Type.INT);
             typeMap.put(Long.class, Schema.Type.LONG);
             typeMap.put(Boolean.class, Schema.Type.BOOLEAN);
@@ -271,16 +283,15 @@ public class AvroScheme extends Scheme {
             typeMap.put(MAP_CLASS, Schema.Type.MAP); 
     
             // TODO - the following Avro Schema.Types are not handled as yet
-    //        ENUM 
-    //        FIXED 
-    //        RECORD 
-    //        UNION 
+            //        ENUM 
+            //        FIXED 
+            //        RECORD 
+            //        UNION 
                        
            return typeMap;
         }
 
-    @SuppressWarnings("unchecked")
-    private Schema.Type toAvroSchemaType(Class clazz) {
+    private Schema.Type toAvroSchemaType(Class<?> clazz) {
         if (_typeMap.containsKey(clazz)) {
             return _typeMap.get(clazz);
         } 
@@ -289,8 +300,7 @@ public class AvroScheme extends Scheme {
     
     
     
-    @SuppressWarnings("unchecked")
-    private void validateFields(Fields schemeFields, Class[] schemeTypes) {
+    private void validateFields(Fields schemeFields, Class<?>[] schemeTypes) {
         if (schemeFields.size() == 0) {
             throw new IllegalArgumentException("There must be at least one field");
         }
@@ -310,9 +320,9 @@ public class AvroScheme extends Scheme {
         
     }
 
-    @SuppressWarnings("unchecked")
-    private boolean isValidArrayType(Class arrayType) {
+    private boolean isValidArrayType(Class<?> arrayType) {
         // only primitive types are allowed for arrays
+        
         if (arrayType == Boolean.class
            || arrayType == Integer.class
            || arrayType == Long.class
@@ -325,9 +335,9 @@ public class AvroScheme extends Scheme {
         return false;
     }
 
-    @SuppressWarnings("unchecked")
-    private int getSchemeTypesSize(Class[] schemeTypes) {
+    private int getSchemeTypesSize(Class<?>[] schemeTypes) {
         int len = 0;
+        
         for (int i = 0; i < schemeTypes.length; i++, len++){
             if (schemeTypes[i] == ARRAY_CLASS || schemeTypes[i] == MAP_CLASS) {
                 i++;

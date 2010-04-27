@@ -227,4 +227,97 @@ public class AvroSchemeTest {
 
     }
 
+    @Test
+    public void testInvalidArrayData() {
+        final Fields testFields = new Fields("arrayOfLongsField");
+        final Class<?>[] schemeTypes = {List.class, Long.class};
+
+        final String in = OUTPUT_DIR+ "testInvalidArrayData/in";
+        final String out = OUTPUT_DIR + "testInvalidArrayData/out";
+        
+        
+        // Create a sequence file with the appropriate tuples
+        Lfs lfsSource = new Lfs(new SequenceFile(testFields), in, SinkMode.REPLACE);
+        TupleEntryCollector write;
+        try {
+            write = lfsSource.openForWrite(new JobConf());
+            Tuple t = new Tuple();
+            t.add(new Tuple(0L, "invalid data type"));
+            write.add(t);
+            write.close();
+            // Now read from the results, and write to an Avro file.
+            Pipe writePipe = new Pipe("tuples to avro");
+
+            Tap avroSink = new Lfs(new AvroScheme(testFields, schemeTypes), out);
+            Flow flow = new FlowConnector().connect(lfsSource, avroSink, writePipe);
+            flow.complete();
+            fail("Exception should be thrown as there is an invalid array element");
+
+        } catch (Exception e) {
+            // Ignore.
+        }
+    }
+    
+    @Test
+    public void testInvalidMap() {
+        final Fields testFields = new Fields("mapOfStringsField");
+        final Class<?>[] schemeTypes = {Map.class, String.class};
+
+        final String in = OUTPUT_DIR+ "testInvalidMap/in";
+        final String out = OUTPUT_DIR + "testInvalidMap/out";
+
+        // Create a sequence file with the appropriate tuples
+        Lfs lfsSource = new Lfs(new SequenceFile(testFields), in, SinkMode.REPLACE);
+        TupleEntryCollector write;
+        try {
+            write = lfsSource.openForWrite(new JobConf());
+            Tuple t = new Tuple();
+            // add invalid map data - where only key is present and no value
+            t.add(new Tuple("key-0", "value-0", "key-1"));
+            write.add(t);
+            write.close();
+            // Now read from the results, and write to an Avro file.
+            Pipe writePipe = new Pipe("tuples to avro");
+
+            Tap avroSink = new Lfs(new AvroScheme(testFields, schemeTypes), out);
+            Flow flow = new FlowConnector().connect(lfsSource, avroSink, writePipe);
+            flow.complete();
+            fail("Exception should be thrown as there is an invalid map");
+
+        } catch (Exception e) {
+            // Ignore.
+        }
+    }
+
+    @Test
+    public void testInvalidMapData() {
+        final Fields testFields = new Fields("mapOfStringsField");
+        final Class<?>[] schemeTypes = {Map.class, String.class};
+
+        final String in = OUTPUT_DIR+ "testInvalidMapData/in";
+        final String out = OUTPUT_DIR + "testInvalidMapData/out";
+
+        // Create a sequence file with the appropriate tuples
+        Lfs lfsSource = new Lfs(new SequenceFile(testFields), in, SinkMode.REPLACE);
+        TupleEntryCollector write;
+        try {
+            write = lfsSource.openForWrite(new JobConf());
+            Tuple t = new Tuple();
+            // add invalid map data - key isn't a String
+            t.add(new Tuple("key-0", "value-0", 1L, "value-2"));
+            write.add(t);
+            write.close();
+            // Now read from the results, and write to an Avro file.
+            Pipe writePipe = new Pipe("tuples to avro");
+
+            Tap avroSink = new Lfs(new AvroScheme(testFields, schemeTypes), out);
+            Flow flow = new FlowConnector().connect(lfsSource, avroSink, writePipe);
+            flow.complete();
+            fail("Exception should be thrown as the key isn't a String");
+
+        } catch (Exception e) {
+            // Ignore.
+        }
+    }
+
  }

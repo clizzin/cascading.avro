@@ -51,6 +51,7 @@ public class AvroScheme extends Scheme {
     public static final Class<?> MAP_CLASS = Map.class;
 
     private static final Logger LOGGER = Logger.getLogger(AvroScheme.class);
+    private static final String RECORD_NAME = "CascadingAvroSchema";
     private Fields _schemeFields;
     private Class<?>[] _schemeTypes;
     private HashMap<Class<?>, Schema.Type> _typeMap = createTypeMap();
@@ -168,7 +169,11 @@ public class AvroScheme extends Scheme {
             fields.add(new Schema.Field(fieldName, createAvroSchema(schemeFields, subSchemeTypes, depth+1), "",null));
         }
         // Avro doesn't like anonymous records - so create a named one.
-        Schema schema =  Schema.createRecord("Cascading-Schema-"+depth, "auto generated", "", false); 
+        String recordName = RECORD_NAME;
+        if (depth > 0) {
+            recordName = recordName + depth;
+        }
+        Schema schema =  Schema.createRecord(recordName, "auto generated", "", false);
         schema.setFields(fields);
         return schema;
     }
@@ -246,10 +251,13 @@ public class AvroScheme extends Scheme {
     private Object convertToAvroArray(Object inObj, Class<?> arrayClass) {
         Tuple tuple = (Tuple)inObj;
         
-        // TODO VMa - verify that each tuple value item has the same (primitive) type.
         GenericData.Array arr = new GenericData.Array(tuple.size(), Schema.createArray(Schema.create(toAvroSchemaType(arrayClass))));
         for (int i = 0; i < tuple.size(); i++) {
-            arr.add(convertToAvroPrimitive(tuple.getObject(i), arrayClass));
+            if (tuple.getObject(i).getClass() == arrayClass) {
+                arr.add(convertToAvroPrimitive(tuple.getObject(i), arrayClass));
+            } else {
+                throw new RuntimeException(String.format("Found array tuple with class %s instead of expected %", tuple.getObject(i).getClass(), arrayClass));
+            }
         }
         return arr;
     }
@@ -257,12 +265,21 @@ public class AvroScheme extends Scheme {
     private Object convertToAvroMap(Object inObj, Class<?> valClass) {
         Tuple tuple = (Tuple)inObj;
         
-        // TODO VMa - verify that tuple size is a power of 2
-        // TODO VMa - verify that each tuple key item is a string, and
-        // each tuple value item has the same (primitive, only) type.
         Map<Utf8, Object>convertedObj =  new HashMap<Utf8, Object>();
-        for (int i = 0; i < tuple.size(); i+=2) {
+        int tupleSize = tuple.size();
+        boolean powerOfTwo = (tupleSize > 0) && ((tupleSize & (tupleSize - 1)) == 0);
+        if (!powerOfTwo) {
+            throw new RuntimeException("Invalid map definition - maps need to be Tuples made up of key,value pairs");
+        }
+
+        for (int i = 0; i < tupleSize; i+=2) {
             // the tuple entries are key followed by value
+            if (tuple.getObject(i).getClass() != String.class) {
+                throw new RuntimeException("Invalid map definition - the key should be a String - instead of " + tuple.getObject(i).getClass());
+            }
+            if (tuple.getObject(i+1).getClass() != valClass) {
+                throw new RuntimeException(String.format("Found map value with class %s instead of expected %s", tuple.getObject(i).getClass(), valClass));
+            }
             convertedObj.put(new Utf8(tuple.getString(i)), convertToAvroPrimitive(tuple.getObject(i+1), valClass));
         }
         return convertedObj;

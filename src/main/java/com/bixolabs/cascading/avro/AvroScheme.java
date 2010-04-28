@@ -52,6 +52,7 @@ public class AvroScheme extends Scheme {
 
     private static final Logger LOGGER = Logger.getLogger(AvroScheme.class);
     private static final String RECORD_NAME = "CascadingAvroSchema";
+    private String _recordName = RECORD_NAME;
     private Fields _schemeFields;
     private Class<?>[] _schemeTypes;
     private HashMap<Class<?>, Schema.Type> _typeMap = createTypeMap();
@@ -70,7 +71,6 @@ public class AvroScheme extends Scheme {
     @Override
     public void sourceInit(Tap tap, JobConf conf) throws IOException {
         Schema schema = getSchema();
-    
         AvroJob.setInputGeneric(conf, schema);
         LOGGER.info(String.format("Initializing Avro scheme for source tap - scheme fields: %s", _schemeFields));
     }
@@ -139,6 +139,25 @@ public class AvroScheme extends Scheme {
         outputCollector.collect(wrapper, NullWritable.get());
     }
 
+    /**
+     * Set the record name to be used when generating the Avro Schema. If there are
+     * nested records, then the depth is added to the name (e.g. FooBar, FooBar1...)
+     * @param recordName
+     */
+    public void setRecordName(String recordName) {
+        _recordName = recordName;
+    }
+
+    /**
+     * 
+     * @return the JSON representation of the Avro schema that will be generated
+     */
+    public String getJsonSchema() {
+        // Since _schema is set up as transient generate the most current state
+        Schema schema = generateSchema(_schemeFields, _schemeTypes, 0);
+        return schema.toString();
+    }
+    
     /*
      * Cascading serializes the object and stashes it in the conf. Since Schema
      * isn't Serializable we work around it by making it a transient field and
@@ -169,7 +188,7 @@ public class AvroScheme extends Scheme {
             fields.add(new Schema.Field(fieldName, createAvroSchema(schemeFields, subSchemeTypes, depth+1), "",null));
         }
         // Avro doesn't like anonymous records - so create a named one.
-        String recordName = RECORD_NAME;
+        String recordName = _recordName;
         if (depth > 0) {
             recordName = recordName + depth;
         }

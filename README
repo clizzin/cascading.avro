@@ -60,7 +60,10 @@ alternative key/value pairs. Note that Avro maps always use a String as the key,
 same constraint exists on the Cascading side.
 
 There's no support for using anything other than primitive types as values, so you can't
-leverage Avro support for nesting records/maps/arrays as fields in the Avro record.
+leverage Avro support for nesting records/maps/arrays as fields in the Avro record. While
+Cascading does support using arbitrary types for fields, as long as they can be serialized,
+we do not and probably will not attempt to synthesize mappings of arbitrarily complex data
+types between Cascading and Avro.
 
 ===============================
 Known Issues

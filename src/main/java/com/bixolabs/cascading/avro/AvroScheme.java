@@ -136,7 +136,7 @@ public class AvroScheme extends Scheme {
         }
 
         AvroWrapper<GenericData.Record> wrapper = new AvroWrapper<GenericData.Record>(datum);
-        outputCollector.collect(wrapper, NullWritable.get());
+        outputCollector.collect(wrapper, result);
     }
 
     /**

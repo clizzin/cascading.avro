@@ -297,7 +297,7 @@ public class AvroScheme extends Scheme {
                 throw new RuntimeException("Invalid map definition - the key should be a String - instead of " + tuple.getObject(i).getClass());
             }
             if (tuple.getObject(i+1).getClass() != valClass) {
-                throw new RuntimeException(String.format("Found map value with class %s instead of expected %s", tuple.getObject(i).getClass(), valClass));
+                throw new RuntimeException(String.format("Found map value with %s instead of expected %s", tuple.getObject(i+1).getClass(), valClass));
             }
             convertedObj.put(new Utf8(tuple.getString(i)), convertToAvroPrimitive(tuple.getObject(i+1), valClass));
         }

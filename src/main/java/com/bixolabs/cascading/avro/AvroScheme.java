@@ -328,8 +328,8 @@ public class AvroScheme extends Scheme {
         
         Map<Utf8, Object>convertedObj =  new HashMap<Utf8, Object>();
         int tupleSize = tuple.size();
-        boolean powerOfTwo = (tupleSize > 0) && ((tupleSize & (tupleSize - 1)) == 0);
-        if (!powerOfTwo) {
+        boolean multipleOfTwo = (tupleSize >= 0) && (tupleSize % 2 == 0);
+        if (!multipleOfTwo) {
             throw new RuntimeException("Invalid map definition - maps need to be Tuples made up of key,value pairs");
         }
 
@@ -339,7 +339,7 @@ public class AvroScheme extends Scheme {
                 throw new RuntimeException("Invalid map definition - the key should be a String - instead of " + tuple.getObject(i).getClass());
             }
             if (tuple.getObject(i+1).getClass() != valClass) {
-                throw new RuntimeException(String.format("Found map value with class %s instead of expected %s", tuple.getObject(i).getClass(), valClass));
+                throw new RuntimeException(String.format("Found map value with %s instead of expected %s", tuple.getObject(i+1).getClass(), valClass));
             }
             convertedObj.put(new Utf8(tuple.getString(i)), convertToAvroPrimitive(tuple.getObject(i+1), valClass));
         }

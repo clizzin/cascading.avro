@@ -343,12 +343,12 @@ public class AvroSchemeTest {
     @Test
     public void testSetRecordName() {
         AvroScheme avroScheme = new AvroScheme(new Fields("a"), new Class[] { Long.class });
-        String expected = "{\"type\":\"record\",\"name\":\"CascadingAvroSchema\",\"namespace\":\"\",\"fields\":[{\"name\":\"a\",\"type\":\"long\",\"doc\":\"\"}]}";
+        String expected = "{\"type\":\"record\",\"name\":\"CascadingAvroSchema\",\"namespace\":\"\",\"fields\":[{\"name\":\"a\",\"type\":[\"null\",\"long\"],\"doc\":\"\"}]}";
         String jsonSchema = avroScheme.getJsonSchema();
         assertEquals(expected, jsonSchema);
         avroScheme.setRecordName("FooBar");
         String jsonSchemaWithRecordName = avroScheme.getJsonSchema();
-        String expectedWithName = "{\"type\":\"record\",\"name\":\"FooBar\",\"namespace\":\"\",\"fields\":[{\"name\":\"a\",\"type\":\"long\",\"doc\":\"\"}]}";
+        String expectedWithName = "{\"type\":\"record\",\"name\":\"FooBar\",\"namespace\":\"\",\"fields\":[{\"name\":\"a\",\"type\":[\"null\",\"long\"],\"doc\":\"\"}]}";
         assertEquals(expectedWithName, jsonSchemaWithRecordName);
     }
 

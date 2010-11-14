@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -226,9 +227,17 @@ public class AvroScheme extends Scheme {
                 typeIndex++;
                 subSchemeTypes[1] = schemeTypes[typeIndex];
             }  
-            
-            fields.add(new Schema.Field(fieldName, createAvroSchema(schemeFields, subSchemeTypes, depth+1), "",null));
+                        
+            final Schema schema = createAvroSchema(schemeFields, subSchemeTypes, depth+1);
+            final Schema nullSchema = Schema.create(Schema.Type.NULL);
+            List<Schema> schemas = new LinkedList<Schema>() { {
+                add(nullSchema);
+                add(schema);
+            }};
+
+            fields.add(new Schema.Field(fieldName, Schema.createUnion(schemas), "", null));
         }
+        
         // Avro doesn't like anonymous records - so create a named one.
         String recordName = _recordName;
         if (depth > 0) {
@@ -259,7 +268,9 @@ public class AvroScheme extends Scheme {
 
     
     private Object convertFromAvroPrimitive(Object inObj, Class<?> inType) {
-        if (inType == String.class) {
+        if (inObj == null) {
+            return null;
+        } else if (inType == String.class) {
             String convertedObj =  ((Utf8)inObj).toString();
             return convertedObj;
         } else if (inType == BytesWritable.class) {
@@ -273,6 +284,10 @@ public class AvroScheme extends Scheme {
         // Since Cascading doesn't have support for arrays - we are using a Tuple to store 
         // the array.
         
+        if (inObj == null) {
+            return null;
+        }
+        
         GenericData.Array<?> arr = (GenericData.Array<?>) inObj;
         Tuple arrayTuple = new Tuple();
         Iterator<?> iter = arr.iterator();
@@ -285,6 +300,10 @@ public class AvroScheme extends Scheme {
     
     @SuppressWarnings("unchecked")
     private Object convertFromAvroMap(Object inObj, Class<?> mapValueClass) {
+        if (inObj == null) {
+            return null;
+        }
+        
         Map<Utf8, Object> inMap = (Map<Utf8, Object>) inObj;
         
         Tuple convertedMapTuple =  new Tuple();
@@ -296,7 +315,9 @@ public class AvroScheme extends Scheme {
     }
 
     private Object convertToAvroPrimitive(Object inObj, Class<?> curType) {
-        if (curType == String.class) {
+        if (inObj == null) {
+            return null;
+        } else if (curType == String.class) {
             Utf8 convertedObj = new Utf8((String)inObj);
             return convertedObj;
         } else if (curType == BytesWritable.class) {
@@ -310,6 +331,10 @@ public class AvroScheme extends Scheme {
 
     @SuppressWarnings("unchecked")
     private Object convertToAvroArray(Object inObj, Class<?> arrayClass) {
+        if (inObj == null) {
+            return null;
+        }
+        
         Tuple tuple = (Tuple)inObj;
         
         GenericData.Array arr = new GenericData.Array(tuple.size(), Schema.createArray(Schema.create(toAvroSchemaType(arrayClass))));
@@ -324,6 +349,10 @@ public class AvroScheme extends Scheme {
     }
 
     private Object convertToAvroMap(Object inObj, Class<?> valClass) {
+        if (inObj == null) {
+            return null;
+        }
+        
         Tuple tuple = (Tuple)inObj;
         
         Map<Utf8, Object>convertedObj =  new HashMap<Utf8, Object>();

@@ -19,6 +19,7 @@ package com.bixolabs.cascading.avro;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -26,13 +27,21 @@ import java.util.Map;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.mapred.AvroInputFormat;
 import org.apache.avro.mapred.AvroJob;
+import org.apache.avro.mapred.AvroKey;
+import org.apache.avro.mapred.AvroKeyComparator;
+import org.apache.avro.mapred.AvroOutputFormat;
+import org.apache.avro.mapred.AvroSerialization;
+import org.apache.avro.mapred.AvroValue;
 import org.apache.avro.mapred.AvroWrapper;
 import org.apache.avro.util.Utf8;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.mapred.Reducer;
 import org.apache.log4j.Logger;
 
 import cascading.scheme.Scheme;
@@ -68,18 +77,51 @@ public class AvroScheme extends Scheme {
         _schemeTypes = schemeTypes;
     }
 
+    @SuppressWarnings({ "deprecation" })
     @Override
     public void sourceInit(Tap tap, JobConf conf) throws IOException {
-        Schema schema = getSchema();
-        AvroJob.setInputGeneric(conf, schema);
+        conf.set(AvroJob.INPUT_SCHEMA, getSchema().toString());
+        conf.setInputFormat(AvroInputFormat.class);
+
+        // add AvroSerialization to io.serializations
+        Collection<String> serializations =
+            conf.getStringCollection("io.serializations");
+        if (!serializations.contains(AvroSerialization.class.getName())) {
+            serializations.add(AvroSerialization.class.getName());
+            conf.setStrings("io.serializations", serializations.toArray(new String[0]));
+        }
+
         LOGGER.info(String.format("Initializing Avro scheme for source tap - scheme fields: %s", _schemeFields));
     }
 
+    @SuppressWarnings({ "deprecation", "unchecked" })
     @Override
     public void sinkInit(Tap tap, JobConf conf) throws IOException {
-        Schema schema = getSchema();
+        conf.set(AvroJob.OUTPUT_SCHEMA, getSchema().toString());
+        conf.setOutputFormat(AvroOutputFormat.class);
 
-        AvroJob.setOutputGeneric(conf, schema);
+        // Since we're outputting to Avro, we need to set up output values.
+        // TODO KKr - why don't we need to set the OutputValueClass?
+        // TODO KKr - why do we need to set the OutputKeyComparatorClass?
+        conf.setOutputKeyClass(AvroWrapper.class);
+        conf.setOutputKeyComparatorClass(AvroKeyComparator.class);
+        conf.setMapOutputKeyClass(AvroKey.class);
+        conf.setMapOutputValueClass(AvroValue.class);
+
+        // add AvroSerialization to io.serializations
+        Collection<String> serializations =
+            conf.getStringCollection("io.serializations");
+        if (!serializations.contains(AvroSerialization.class.getName())) {
+            serializations.add(AvroSerialization.class.getName());
+            conf.setStrings("io.serializations", serializations.toArray(new String[0]));
+        }
+
+//        Class<? extends Mapper> mapClass = conf.getMapperClass();
+//        Class<? extends Reducer> reduceClass = conf.getReducerClass();
+//        AvroJob.setOutputSchema(conf, getSchema());
+//        conf.setMapperClass(mapClass);
+//        conf.setReducerClass(reduceClass);
+
         LOGGER.info(String.format("Initializing Avro scheme for sink tap - scheme fields: %s", _schemeFields));
     }
 
@@ -136,7 +178,7 @@ public class AvroScheme extends Scheme {
         }
 
         AvroWrapper<GenericData.Record> wrapper = new AvroWrapper<GenericData.Record>(datum);
-        outputCollector.collect(wrapper, result);
+        outputCollector.collect(wrapper, NullWritable.get());
     }
 
     /**

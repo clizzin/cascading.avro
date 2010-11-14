@@ -1,14 +1,14 @@
 package com.bixolabs.cascading.avro;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import junit.framework.Assert;
 
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.generic.GenericDatumReader;
@@ -92,8 +92,10 @@ public class AvroSchemeTest {
         
         // Create a scheme that tests each of the supported types
 
-        final Fields testFields = new Fields("integerField", "longField", "booleanField", "doubleField", "floatField", "stringField", "bytesField", "arrayOfLongsField", "mapOfStringsField");
-        final Class<?>[] schemeTypes = {Integer.class, Long.class, Boolean.class, Double.class, Float.class, String.class, BytesWritable.class, List.class, Long.class, Map.class, String.class};
+        final Fields testFields = new Fields("integerField", "longField", "booleanField", "doubleField", "floatField", 
+                        "stringField", "bytesField", "arrayOfLongsField", "mapOfStringsField");
+        final Class<?>[] schemeTypes = {Integer.class, Long.class, Boolean.class, Double.class, Float.class, 
+                        String.class, BytesWritable.class, List.class, Long.class, Map.class, String.class};
         final String in = OUTPUT_DIR+ "testRoundTrip/in";
         final String out = OUTPUT_DIR + "testRoundTrip/out";
         final String verifyout = OUTPUT_DIR + "testRoundTrip/verifyout";
@@ -167,7 +169,7 @@ public class AvroSchemeTest {
             assertEquals((double)i, te.getDouble("doubleField"), 0.0001);
             assertEquals((float)i, te.getFloat("floatField"), 0.0001);
             assertEquals("" + i, te.getString("stringField"));
-            
+                        
             int bytesLength = ((BytesWritable)te.get("bytesField")).getSize();
             byte[] bytes = ((BytesWritable)te.get("bytesField")).get();
             assertEquals(i + 1, bytesLength);
@@ -313,14 +315,40 @@ public class AvroSchemeTest {
     }
 
     @Test
+    public void testNullable() throws Exception {
+        final Fields testFields = new Fields("nullString");
+        final Class<?>[] schemeTypes = {String.class};
+
+        final String in = OUTPUT_DIR+ "testNullable/in";
+        final String out = OUTPUT_DIR + "testNullable/out";
+
+        // Create a sequence file with the appropriate tuples
+        Lfs lfsSource = new Lfs(new SequenceFile(testFields), in, SinkMode.REPLACE);
+        TupleEntryCollector write;
+
+        write = lfsSource.openForWrite(new JobConf());
+        Tuple t = new Tuple();
+        String nullString = null;
+        t.add(nullString);
+        write.add(t);
+        write.close();
+        // Now read from the results, and write to an Avro file.
+        Pipe writePipe = new Pipe("tuples to avro");
+
+        Tap avroSink = new Lfs(new AvroScheme(testFields, schemeTypes), out);
+        Flow flow = new FlowConnector().connect(lfsSource, avroSink, writePipe);
+        flow.complete();
+    }
+
+    @Test
     public void testSetRecordName() {
         AvroScheme avroScheme = new AvroScheme(new Fields("a"), new Class[] { Long.class });
-        String expected = "{\"type\":\"record\",\"name\":\"CascadingAvroSchema\",\"namespace\":\"\",\"fields\":[{\"name\":\"a\",\"type\":\"long\"}]}";
+        String expected = "{\"type\":\"record\",\"name\":\"CascadingAvroSchema\",\"namespace\":\"\",\"fields\":[{\"name\":\"a\",\"type\":\"long\",\"doc\":\"\"}]}";
         String jsonSchema = avroScheme.getJsonSchema();
         assertEquals(expected, jsonSchema);
         avroScheme.setRecordName("FooBar");
         String jsonSchemaWithRecordName = avroScheme.getJsonSchema();
-        String expectedWithName = "{\"type\":\"record\",\"name\":\"FooBar\",\"namespace\":\"\",\"fields\":[{\"name\":\"a\",\"type\":\"long\"}]}";
+        String expectedWithName = "{\"type\":\"record\",\"name\":\"FooBar\",\"namespace\":\"\",\"fields\":[{\"name\":\"a\",\"type\":\"long\",\"doc\":\"\"}]}";
         assertEquals(expectedWithName, jsonSchemaWithRecordName);
     }
 

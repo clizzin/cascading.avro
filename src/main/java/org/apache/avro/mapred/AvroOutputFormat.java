@@ -20,25 +20,23 @@ package org.apache.avro.mapred;
 
 import java.io.IOException;
 
-import org.apache.hadoop.io.NullWritable;
+import org.apache.avro.Schema;
+import org.apache.avro.file.CodecFactory;
+import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.io.DatumWriter;
+import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.FileOutputFormat;
+import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordWriter;
+import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.util.Progressable;
-
-import org.apache.avro.Schema;
-import org.apache.avro.io.DatumWriter;
-import org.apache.avro.generic.GenericDatumWriter;
-import org.apache.avro.specific.SpecificDatumWriter;
-import org.apache.avro.file.DataFileWriter;
-import org.apache.avro.file.CodecFactory;
 
 /** An {@link org.apache.hadoop.mapred.OutputFormat} for Avro data files. */
 public class AvroOutputFormat <T>
-  extends FileOutputFormat<AvroWrapper<T>, NullWritable> {
+  extends FileOutputFormat<AvroWrapper<T>, Object> {
 
   final static String EXT = ".avro";
 
@@ -51,7 +49,7 @@ public class AvroOutputFormat <T>
     job.setInt(DEFLATE_LEVEL_KEY, level);
   }
 
-  public RecordWriter<AvroWrapper<T>, NullWritable>
+  public RecordWriter<AvroWrapper<T>, Object>
     getRecordWriter(FileSystem ignore, JobConf job,
                     String name, Progressable prog)
     throws IOException {
@@ -73,8 +71,8 @@ public class AvroOutputFormat <T>
     Path path = FileOutputFormat.getTaskOutputPath(job, name+EXT);
     writer.create(schema, path.getFileSystem(job).create(path));
 
-    return new RecordWriter<AvroWrapper<T>, NullWritable>() {
-        public void write(AvroWrapper<T> wrapper, NullWritable ignore)
+    return new RecordWriter<AvroWrapper<T>, Object>() {
+        public void write(AvroWrapper<T> wrapper, Object ignore)
           throws IOException {
           writer.append(wrapper.datum());
         }

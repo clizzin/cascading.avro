@@ -45,14 +45,6 @@ public class AvroSchemeTest {
     }
     
     
-//    @Test
-//    public void testAvroSchemaGeneration() {
-//        AvroScheme avroScheme = new AvroScheme(new Fields("a", "b", "c"), 
-//                        new Class[] { List.class, Long.class, Integer.class, BytesWritable.class});
-//        Schema schema = avroScheme.getSchema();
-//        System.out.println(schema.toString());
-//    }
-
     @Test
     public void testSchemeChecks() {
  
@@ -318,6 +310,18 @@ public class AvroSchemeTest {
         } catch (Exception e) {
             // Ignore.
         }
+    }
+
+    @Test
+    public void testSetRecordName() {
+        AvroScheme avroScheme = new AvroScheme(new Fields("a"), new Class[] { Long.class });
+        String expected = "{\"type\":\"record\",\"name\":\"CascadingAvroSchema\",\"namespace\":\"\",\"fields\":[{\"name\":\"a\",\"type\":\"long\"}]}";
+        String jsonSchema = avroScheme.getJsonSchema();
+        assertEquals(expected, jsonSchema);
+        avroScheme.setRecordName("FooBar");
+        String jsonSchemaWithRecordName = avroScheme.getJsonSchema();
+        String expectedWithName = "{\"type\":\"record\",\"name\":\"FooBar\",\"namespace\":\"\",\"fields\":[{\"name\":\"a\",\"type\":\"long\"}]}";
+        assertEquals(expectedWithName, jsonSchemaWithRecordName);
     }
 
  }

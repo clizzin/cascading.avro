@@ -328,7 +328,7 @@ public class AvroScheme extends Scheme {
         
         Map<Utf8, Object>convertedObj =  new HashMap<Utf8, Object>();
         int tupleSize = tuple.size();
-        boolean multipleOfTwo = (tupleSize >= 0) && (tupleSize % 2 == 0);
+        boolean multipleOfTwo = (tupleSize >= 0) && ((tupleSize % 2) == 0);
         if (!multipleOfTwo) {
             throw new RuntimeException("Invalid map definition - maps need to be Tuples made up of key,value pairs");
         }

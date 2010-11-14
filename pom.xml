@@ -17,7 +17,7 @@
 	<scm>
 		<connection>scm:git:git://github.com/bixolabs/cascading.avro.git</connection>
 		<developerConnection>TransPac Software, Inc.</developerConnection>
-		<url>scm:git:git://github.com/bixolabs/cascading.avro.git</url>
+		<url>https://github.com/bixolabs/cascading.avro/</url>
 	</scm>
 	<organization>
 		<name>Bixo Labs</name>
@@ -35,7 +35,7 @@
 		<dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-core</artifactId>
-            <version>0.18.3</version>
+            <version>0.20.2</version>
             <scope>provided</scope>
             <exclusions>
             	<exclusion>
@@ -52,13 +52,13 @@
         <dependency>
         	<groupId>org.apache.hadoop</groupId>
         	<artifactId>avro</artifactId>
-            <version>1.3.2</version>
+            <version>1.4.0</version>
         </dependency>
         
 		<dependency>
             <groupId>cascading</groupId>
             <artifactId>cascading-core</artifactId>
-            <version>1.1-RC-1</version>
+            <version>1.1.1</version>
         </dependency>
         
 		<dependency>
@@ -82,13 +82,6 @@
         </dependency>
 
 		<dependency>
-            <groupId>ant-eclipse</groupId>
-            <artifactId>ant-eclipse-jvm1.2</artifactId>
-            <version>1.0</version>
-            <scope>eclipse</scope>
-        </dependency>
-
-		<dependency>
 			<groupId>commons-httpclient</groupId>
 			<artifactId>commons-httpclient</artifactId>
 			<version>3.1</version>
@@ -100,6 +93,14 @@
             <artifactId>commons-io</artifactId>
             <version>1.3.2</version>
         </dependency>
+
+		<dependency>
+            <groupId>ant-eclipse</groupId>
+            <artifactId>ant-eclipse-jvm1.2</artifactId>
+            <version>1.0</version>
+            <scope>provided</scope>
+        </dependency>
+
 
 	</dependencies>
 </project>

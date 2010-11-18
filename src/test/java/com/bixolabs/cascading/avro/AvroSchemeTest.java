@@ -1,14 +1,15 @@
 package com.bixolabs.cascading.avro;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import junit.framework.Assert;
 
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.generic.GenericDatumReader;
@@ -36,6 +37,11 @@ public class AvroSchemeTest {
 
     private static final String OUTPUT_DIR = "build/test/AvroSchmeTest/"; 
     
+    private static enum TestEnum {
+        ONE,
+        TWO
+    }
+    
     @Before
     public void setup() throws IOException {
         File outputDir = new File(OUTPUT_DIR);
@@ -43,7 +49,6 @@ public class AvroSchemeTest {
             FileUtils.deleteDirectory(outputDir);
         }
     }
-    
     
     @Test
     public void testSchemeChecks() {
@@ -87,15 +92,16 @@ public class AvroSchemeTest {
     }
 
     
+    @SuppressWarnings("serial")
     @Test
     public void testRoundTrip() throws Exception {
         
         // Create a scheme that tests each of the supported types
 
         final Fields testFields = new Fields("integerField", "longField", "booleanField", "doubleField", "floatField", 
-                        "stringField", "bytesField", "arrayOfLongsField", "mapOfStringsField");
+                        "stringField", "bytesField", "arrayOfLongsField", "mapOfStringsField", "enumField");
         final Class<?>[] schemeTypes = {Integer.class, Long.class, Boolean.class, Double.class, Float.class, 
-                        String.class, BytesWritable.class, List.class, Long.class, Map.class, String.class};
+                        String.class, BytesWritable.class, List.class, Long.class, Map.class, String.class, TestEnum.class};
         final String in = OUTPUT_DIR+ "testRoundTrip/in";
         final String out = OUTPUT_DIR + "testRoundTrip/out";
         final String verifyout = OUTPUT_DIR + "testRoundTrip/verifyout";
@@ -112,9 +118,19 @@ public class AvroSchemeTest {
         t.add(0.0d);
         t.add(0.0f);
         t.add("0");
-        t.add(new BytesWritable(new byte[] {0}));
-        t.add(new Tuple(0L));
-        t.add(new Tuple("key-0", "value-0"));
+        AvroScheme.addToTuple(t, new byte[] {0});
+        
+        List<Long> arrayOfLongs = new ArrayList<Long>() {{
+            add(0L);
+        }};
+        AvroScheme.addToTuple(t, arrayOfLongs);
+
+        Map<String, String> mapOfStrings = new HashMap<String, String>() {{
+            put("key-0", "value-0");
+        }};
+        AvroScheme.addToTuple(t, mapOfStrings);
+        
+        AvroScheme.addToTuple(t, TestEnum.ONE);
         write.add(t);
 
         t = new Tuple();
@@ -124,9 +140,10 @@ public class AvroSchemeTest {
         t.add(1.0d);
         t.add(1.0f);
         t.add("1");
-        t.add(new BytesWritable(new byte[] {0, 1}));
+        AvroScheme.addToTuple(t, new byte[] {0, 1});
         t.add(new Tuple(0L, 1L));
         t.add(new Tuple("key-0", "value-0", "key-1", "value-1"));
+        AvroScheme.addToTuple(t, TestEnum.TWO);
         write.add(t);
 
         write.close();
@@ -162,16 +179,18 @@ public class AvroSchemeTest {
             assertTrue(te.get("bytesField") instanceof BytesWritable);
             assertTrue(te.get("arrayOfLongsField") instanceof Tuple);
             assertTrue(te.get("mapOfStringsField") instanceof Tuple);
-            
+            assertTrue(te.get("enumField") instanceof String);
+
             assertEquals(i, te.getInteger("integerField"));
             assertEquals(i, te.getLong("longField"));
             assertEquals(i > 0, te.getBoolean("booleanField"));
             assertEquals((double)i, te.getDouble("doubleField"), 0.0001);
             assertEquals((float)i, te.getFloat("floatField"), 0.0001);
             assertEquals("" + i, te.getString("stringField"));
-                        
-            int bytesLength = ((BytesWritable)te.get("bytesField")).getSize();
-            byte[] bytes = ((BytesWritable)te.get("bytesField")).get();
+            assertEquals(i == 0 ? TestEnum.ONE : TestEnum.TWO, TestEnum.valueOf(te.getString("enumField")));
+            
+            int bytesLength = ((BytesWritable)te.get("bytesField")).getLength();
+            byte[] bytes = ((BytesWritable)te.get("bytesField")).getBytes();
             assertEquals(i + 1, bytesLength);
             for (int j = 0; j < bytesLength; j++) {
                 assertEquals(j, bytes[j]);
@@ -350,6 +369,17 @@ public class AvroSchemeTest {
         String jsonSchemaWithRecordName = avroScheme.getJsonSchema();
         String expectedWithName = "{\"type\":\"record\",\"name\":\"FooBar\",\"namespace\":\"\",\"fields\":[{\"name\":\"a\",\"type\":[\"null\",\"long\"],\"doc\":\"\"}]}";
         assertEquals(expectedWithName, jsonSchemaWithRecordName);
+    }
+    
+    @Test
+    public void testEnumInSchema() throws Exception {
+        AvroScheme avroScheme = new AvroScheme(new Fields("a"), new Class[] { TestEnum.class });
+        String jsonSchema = avroScheme.getJsonSchema();
+        String enumField = String.format("{\"type\":\"enum\",\"name\":\"%s\",\"namespace\":\"%s\",\"symbols\":[\"ONE\",\"TWO\"]}",
+                        "AvroSchemeTest$TestEnum", TestEnum.class.getPackage().getName());
+        String expected = String.format("{\"type\":\"record\",\"name\":\"CascadingAvroSchema\",\"namespace\":\"\",\"fields\":[{\"name\":\"a\",\"type\":[\"null\",%s],\"doc\":\"\"}]}",
+                        enumField);
+        assertEquals(expected, jsonSchema);
     }
 
  }

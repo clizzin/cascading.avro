@@ -32,8 +32,9 @@ The set of supported types, with the corresponding Avro type, is:
 	BytesWritable.class, Schema.Type.BYTES
 	List.class, Schema.Type.ARRAY
 	Map.class, Schema.Type.MAP
-
-See below for how the List and Map types are actually represented in a Tuple as a
+	Enum.class, Schema.Type.ENUM
+	
+See below for how the List, Map and Enum types are actually represented in a Tuple as a
 nested Tuple.
 
 ===============================
@@ -51,13 +52,17 @@ Limitations
 ===============================
 
 There's currently no way to set the metadata for the generated Avro file, nor is there
-any way to read that data back in.
+any way to read that data back in. This is now supported in Avro, we just need to hook
+it up in the Scheme.
 
-The support for arrays and maps is rudimentary and kludgy. Since these aren't natively
+The support for lists and maps is rudimentary and kludgy. Since these aren't natively
 supported by Cascading yet (as of 1.1), we imitate this by nesting Tuples into the Tuple.
-So an array item is a Tuple of 0...n primitive values, and a map is a Tuple that contains
+So a list item is a Tuple of 0...n primitive values, and a map is a Tuple that contains
 alternative key/value pairs. Note that Avro maps always use a String as the key, so that
 same constraint exists on the Cascading side.
+
+The support for enums assumes that the Tuple has stored the enum value as the string
+returned by enum.toString(), such that enum.valueOf(string) will return the original enum.
 
 There's no support for using anything other than primitive types as values, so you can't
 leverage Avro support for nesting records/maps/arrays as fields in the Avro record. While
@@ -69,7 +74,7 @@ types between Cascading and Avro.
 Known Issues
 ===============================
 
-Avro doesn't work properly with standard Hadoop installations prior to 0.21, since
+Avro doesn't work properly with standard Hadoop installations prior to 0.20, since
 Hadoop includes an older version (1.0.1) of the Jackson jar that is required by Avro,
 and Avro uses some newer APIs. So you'll have to sculpt the Hadoop setup to exclude
 that older Jackson jar, or play games with the classloader to ensure the newer jar

@@ -307,7 +307,12 @@ public class AvroScheme extends Scheme {
             String convertedObj = ((Utf8) inObj).toString();
             return convertedObj;
         } else if (inType == BytesWritable.class) {
-            return new BytesWritable(((ByteBuffer) inObj).array());
+            // TODO KKr - this is very inefficient, since we make a copy of
+            // the ByteBuffer array in the call to BytesWritable.set(buffer, pos, length).
+            ByteBuffer buffer = (ByteBuffer)inObj;
+            BytesWritable result = new BytesWritable();
+            result.set(buffer.array(), buffer.position(), buffer.limit());
+            return result;
         } else if (inType.isEnum()) {
             return inObj.toString();
         } else {

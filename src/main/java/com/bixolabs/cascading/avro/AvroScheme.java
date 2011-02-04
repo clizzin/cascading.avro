@@ -309,6 +309,9 @@ public class AvroScheme extends Scheme {
         } else if (inType == BytesWritable.class) {
             // TODO KKr - this is very inefficient, since we make a copy of
             // the ByteBuffer array in the call to BytesWritable.set(buffer, pos, length).
+            // A potentially small win is to check if buffer.position() == 0, and if
+            // so then do result = new BytesWritable(buffer.array()), followed by
+            // result.setSize(buffer.limit())
             ByteBuffer buffer = (ByteBuffer)inObj;
             BytesWritable result = new BytesWritable();
             result.set(buffer.array(), buffer.position(), buffer.limit());

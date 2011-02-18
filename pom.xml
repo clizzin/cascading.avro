@@ -7,7 +7,7 @@
 	<artifactId>cascading.avro</artifactId>
 	<name>Cascading Scheme for Apache Avro</name>
 	<packaging>jar</packaging>
-	<version>1.0-SNAPSHOT</version>
+	<version>1.0</version>
 	<description>Cascading Tap for the Apache Avro serialization format</description>
 	<url>http://github.com/bixolabs/cascading.avro</url>
 	<issueManagement>
